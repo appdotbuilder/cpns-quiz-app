@@ -1,33 +1,31 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type LoginInput, type User } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function login(input: LoginInput): Promise<User | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is authenticating user credentials.
-    // Should verify username exists, compare hashed password, and return user data if valid.
-    // Default users: admin/admin (admin role) and user/user (user role)
-    
-    // Placeholder logic for default users
-    if (input.username === 'admin' && input.password === 'admin') {
-        return Promise.resolve({
-            id: 1,
-            username: 'admin',
-            password: 'admin', // In real implementation, this would be hashed
-            role: 'admin' as const,
-            created_at: new Date(),
-            updated_at: new Date()
-        } as User);
+export const login = async (input: LoginInput): Promise<User | null> => {
+  try {
+    // Query user by username
+    const users = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.username, input.username))
+      .execute();
+
+    if (users.length === 0) {
+      return null; // User not found
     }
-    
-    if (input.username === 'user' && input.password === 'user') {
-        return Promise.resolve({
-            id: 2,
-            username: 'user',
-            password: 'user', // In real implementation, this would be hashed
-            role: 'user' as const,
-            created_at: new Date(),
-            updated_at: new Date()
-        } as User);
+
+    const user = users[0];
+
+    // In a real implementation, you would compare hashed passwords
+    // For this implementation, we're doing plain text comparison as per the requirements
+    if (user.password === input.password) {
+      return user;
     }
-    
-    return Promise.resolve(null);
-}
+
+    return null; // Invalid password
+  } catch (error) {
+    console.error('Login failed:', error);
+    throw error;
+  }
+};

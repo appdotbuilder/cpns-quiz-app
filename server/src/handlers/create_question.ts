@@ -1,12 +1,24 @@
+import { db } from '../db';
+import { questionsTable, quizPackagesTable } from '../db/schema';
 import { type CreateQuestionInput, type Question } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function createQuestion(input: CreateQuestionInput): Promise<Question> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new question for a quiz package.
-    // Only admin users should be able to create questions.
-    // Should validate that the quiz package exists and update the total_questions count.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+export const createQuestion = async (input: CreateQuestionInput): Promise<Question> => {
+  try {
+    // First, validate that the quiz package exists
+    const quizPackage = await db.select()
+      .from(quizPackagesTable)
+      .where(eq(quizPackagesTable.id, input.quiz_package_id))
+      .limit(1)
+      .execute();
+
+    if (quizPackage.length === 0) {
+      throw new Error(`Quiz package with ID ${input.quiz_package_id} not found`);
+    }
+
+    // Insert the new question
+    const result = await db.insert(questionsTable)
+      .values({
         quiz_package_id: input.quiz_package_id,
         question_text: input.question_text,
         option_a: input.option_a,
@@ -16,8 +28,29 @@ export async function createQuestion(input: CreateQuestionInput): Promise<Questi
         option_e: input.option_e,
         correct_answer: input.correct_answer,
         explanation: input.explanation || null,
-        order_number: input.order_number,
-        created_at: new Date(),
+        order_number: input.order_number
+      })
+      .returning()
+      .execute();
+
+    // Get the count of questions for this quiz package
+    const questionCount = await db.select()
+      .from(questionsTable)
+      .where(eq(questionsTable.quiz_package_id, input.quiz_package_id))
+      .execute();
+
+    // Update the quiz package's total_questions count
+    await db.update(quizPackagesTable)
+      .set({ 
+        total_questions: questionCount.length,
         updated_at: new Date()
-    } as Question);
-}
+      })
+      .where(eq(quizPackagesTable.id, input.quiz_package_id))
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Question creation failed:', error);
+    throw error;
+  }
+};

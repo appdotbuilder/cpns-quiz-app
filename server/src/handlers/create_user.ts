@@ -1,15 +1,40 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type CreateUserInput, type User } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function createUser(input: CreateUserInput): Promise<User> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new user account with proper password hashing.
-    // Should validate that username is unique and hash the password before storing.
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+export const createUser = async (input: CreateUserInput): Promise<User> => {
+  try {
+    // Check if username already exists
+    const existingUser = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.username, input.username))
+      .execute();
+
+    if (existingUser.length > 0) {
+      throw new Error('Username already exists');
+    }
+
+    // Hash password using Bun's built-in password hashing
+    const hashedPassword = await Bun.password.hash(input.password, {
+      algorithm: 'bcrypt',
+      cost: 10
+    });
+
+    // Insert user record
+    const result = await db.insert(usersTable)
+      .values({
         username: input.username,
-        password: input.password, // In real implementation, this should be hashed
-        role: input.role || 'user',
-        created_at: new Date(),
-        updated_at: new Date()
-    } as User);
-}
+        password: hashedPassword,
+        role: input.role // Zod default 'user' will already be applied
+      })
+      .returning()
+      .execute();
+
+    const user = result[0];
+    return user;
+  } catch (error) {
+    console.error('User creation failed:', error);
+    throw error;
+  }
+};

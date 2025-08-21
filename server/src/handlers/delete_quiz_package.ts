@@ -1,12 +1,46 @@
+import { db } from '../db';
+import { quizPackagesTable } from '../db/schema';
 import { type SuccessResponse } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function deleteQuizPackage(id: number): Promise<SuccessResponse> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is soft-deleting a quiz package (set is_active to false).
-    // Only admin users should be able to delete quiz packages.
-    // Should also handle deletion of related questions and quiz sessions.
-    return Promise.resolve({
+  try {
+    // Check if quiz package exists
+    const existingPackage = await db.select()
+      .from(quizPackagesTable)
+      .where(eq(quizPackagesTable.id, id))
+      .execute();
+
+    if (existingPackage.length === 0) {
+      return {
         success: false,
-        message: 'Not implemented'
-    });
+        message: 'Quiz package not found'
+      };
+    }
+
+    // Check if already soft-deleted
+    if (!existingPackage[0].is_active) {
+      return {
+        success: false,
+        message: 'Quiz package is already deleted'
+      };
+    }
+
+    // Soft delete by setting is_active to false
+    await db.update(quizPackagesTable)
+      .set({ 
+        is_active: false,
+        updated_at: new Date()
+      })
+      .where(eq(quizPackagesTable.id, id))
+      .execute();
+
+    return {
+      success: true,
+      message: 'Quiz package deleted successfully'
+    };
+  } catch (error) {
+    console.error('Quiz package deletion failed:', error);
+    throw error;
+  }
 }
